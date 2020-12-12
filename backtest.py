@@ -51,57 +51,57 @@ def ATR(df,n):
     df=df.drop(['High-Low','High-prevClose','Low-prevClose'],axis=1)
     return df
 
-def RSI(df,n):
-    # signal=False
-    # df=df.copy()
+# def RSI(df,n):
+#     # signal=False
+#     # df=df.copy()
    
-    # closes = self.df['Close']
-    df['RSI']=talib.RSI(df['Close'], timeperiod=n)
-    # df['RSI']=talib.RSI(np.array(closes), timeperiod=3)
+#     # closes = self.df['Close']
+#     df['RSI']=talib.RSI(df['Close'], timeperiod=n)
+#     # df['RSI']=talib.RSI(np.array(closes), timeperiod=3)
     
-    # ul=80
-    # dl=20
-    # condition1=a[-1]<dl and a[-2]>=dl
-    # condition2=a[-1]>ul and a[-2]<=ul
+#     # ul=80
+#     # dl=20
+#     # condition1=a[-1]<dl and a[-2]>=dl
+#     # condition2=a[-1]>ul and a[-2]<=ul
 
-    # if condition1:
-    #     signal='BUY' if self.d==1 else 'SELL'
+#     # if condition1:
+#     #     signal='BUY' if self.d==1 else 'SELL'
 
-    # if condition2:
-    #     signal='SELL' if self.d==1 else 'BUY'
-    # print('df:',df)
+#     # if condition2:
+#     #     signal='SELL' if self.d==1 else 'BUY'
+#     print('df:',df)
+#     return df
+
+def RSI(df, period=3):
+    # 整理資料
+    Chg = df['Close']-df['Close'].shift(1)
+    # Chg = Close - Close.shift(1)
+    Chg_pos = pd.Series(index=Chg.index, data=Chg[Chg>0])
+    Chg_pos = Chg_pos.fillna(0)
+    Chg_neg = pd.Series(index=Chg.index, data=-Chg[Chg<0])
+    Chg_neg = Chg_neg.fillna(0)
+    
+    # 計算period日平均漲跌幅度
+    up_mean = []
+    down_mean = []
+    for i in range(period+1, len(Chg_pos)+1):
+        up_mean.append(np.mean(Chg_pos.values[i-period:i]))
+        down_mean.append(np.mean(Chg_neg.values[i-period:i]))
+    
+    # 計算 RSI
+    rsi = []
+    for i in range(len(up_mean)):
+        rsi.append(100 * up_mean[i] / (up_mean[i]+down_mean[i]))
+    rsi_series = pd.Series(index = df['Close'].index[period:], data = rsi)
+    df['RSI']=rsi_series
     return df
-
-# def RSI(Close, period=12):
-#     # 整理資料
-#     import pandas as pd
-#     Chg = Close - Close.shift(1)
-#     Chg_pos = pd.Series(index=Chg.index, data=Chg[Chg>0])
-#     Chg_pos = Chg_pos.fillna(0)
-#     Chg_neg = pd.Series(index=Chg.index, data=-Chg[Chg<0])
-#     Chg_neg = Chg_neg.fillna(0)
-    
-#     # 計算12日平均漲跌幅度
-#     import numpy as np
-#     up_mean = []
-#     down_mean = []
-#     for i in range(period+1, len(Chg_pos)+1):
-#         up_mean.append(np.mean(Chg_pos.values[i-period:i]))
-#         down_mean.append(np.mean(Chg_neg.values[i-period:i]))
-    
-#     # 計算 RSI
-#     rsi = []
-#     for i in range(len(up_mean)):
-#         rsi.append( 100 * up_mean[i] / ( up_mean[i] + down_mean[i] ) )
-#     rsi_series = pd.Series(index = Close.index[period:], data = rsi)
-#     return rsi_series
 
 
 
 for pair in range(len(pairs_list)):
     df[pair]['ATR']=ATR(df[pair],20)['ATR']
     df[pair]['sma_fast']=SMA(df[pair],50,200)
-    df[pair]['RSI']=RSI(df[pair],3)
+    df[pair]['RSI']=RSI(df[pair],3)['RSI']
     if 'JPY' not in pairs_list[pair]:
         df[pair]['spread']=float(slippage)/float(10000)
         df[pair]['size']=float(size)*float(10000)
@@ -110,6 +110,9 @@ for pair in range(len(pairs_list)):
         df[pair]['spread']=float(slippage)/float(100)
         df[pair]['size']=float(size)*float(100)
         print('Pair: ',pairs_list[pair],'b')
+    
+
+
 
 
 # print(df)
@@ -151,6 +154,7 @@ for pair in range(len(pairs_list)):
 
         # Sell
         if df[pair]['RSI'][i-1]<80 and df[pair]['RSI'][i]>=80 and len(open_trade[pair])==0:
+        # if df[pair]['sma_fast'][i-1]>df[pair]['sma_slow'][i-1] and df[pair]['sma_fast'][i]<=df[pair]['sma_slow'][i] and len(open_trade[pair])==0:
             print(i,'New Short trade at price:',round(df[pair]['Close'][i],4),'On day:',df[pair].index[i],'Pair:',pairs_list[pair])
             trade[pair][i]={'ID':i,
                     'date_of_trade':df[pair].index[i],
