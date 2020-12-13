@@ -122,10 +122,8 @@ for pair in range(len(pairs_list)):
         print('Pair: ',pairs_list[pair],'pip:0.01')
     # print(df[pair])
 
+csv={}
 
-
-
-# print(df)
 open_trade={}
 trade={}
 lep={}
@@ -136,6 +134,8 @@ lsl={}
 ssl={}
 
 for pair in range(len(pairs_list)):
+    csv[pair]={}
+    
     open_trade[pair]=[]
     trade[pair]={}
     lep[pair]=[]
@@ -151,6 +151,7 @@ for pair in range(len(pairs_list)):
         # if df[pair]['RSI'][i-1]<20 and df[pair]['RSI'][i]>=20 and df[pair]['sma_fast'][i-1]<df[pair]['sma_fast'][i] and len(open_trade[pair])==0:
         # if df[pair]['sma_fast'][i-1]<df[pair]['sma_slow'][i-1] and df[pair]['sma_fast'][i]>=df[pair]['sma_slow'][i] and len(open_trade[pair])==0:
             print(i,'New Long trade at price:',round(df[pair]['Close'][i],4),'On day:',df[pair].index[i],'Pair:',pairs_list[pair],'Position:',df[pair]['size'][i])
+            csv[pair][i]={'ID':i,'New Long trade at price':round(df[pair]['Close'][i],4),'On day':df[pair].index[i],'Pair':pairs_list[pair],'Position':df[pair]['size'][i]}
             trade[pair][i]={'ID':i,
                     'date_of_trade':df[pair].index[i],
                     'entry_price':round(df[pair]['Close'][i],4),
@@ -328,3 +329,9 @@ plt.legend()
 plt.title('Return of each pair',fontsize=18)
 
 print('Strategy returns:',round(strategy_results['cum_res'][-1])-account_size)
+
+# csv_df={}
+# for pair in range(len(pairs_list)):
+#     # print('CSV:',csv[pair])
+#     csv_df[pair] = pd.DataFrame(csv[pair])
+#     print(csv_df[pair])
