@@ -10,9 +10,11 @@ from functools import partial,reduce
 import talib
 
 account_size=10000
-slippage=2
+slippage=1.4 #IB Forex commision -0.00002 * position
 size=1
 ATR_SL=2
+rr=1
+perloss=account_size*0.01
 plot_trades = True
 plt.style.use('ggplot')
 
@@ -51,66 +53,74 @@ def ATR(df,n):
     df=df.drop(['High-Low','High-prevClose','Low-prevClose'],axis=1)
     return df
 
-# def RSI(df,n):
-#     # signal=False
-#     # df=df.copy()
+def RSI(df,n):
+    # signal=False
+    # df=df.copy()
    
-#     # closes = self.df['Close']
-#     df['RSI']=talib.RSI(df['Close'], timeperiod=n)
-#     # df['RSI']=talib.RSI(np.array(closes), timeperiod=3)
+    # closes = self.df['Close']
+    df['RSI']=talib.RSI(df['Close'], timeperiod=n)
+    # df['RSI']=talib.RSI(np.array(closes), timeperiod=3)
     
-#     # ul=80
-#     # dl=20
-#     # condition1=a[-1]<dl and a[-2]>=dl
-#     # condition2=a[-1]>ul and a[-2]<=ul
+    # ul=80
+    # dl=20
+    # condition1=a[-1]<dl and a[-2]>=dl
+    # condition2=a[-1]>ul and a[-2]<=ul
 
-#     # if condition1:
-#     #     signal='BUY' if self.d==1 else 'SELL'
+    # if condition1:
+    #     signal='BUY' if self.d==1 else 'SELL'
 
-#     # if condition2:
-#     #     signal='SELL' if self.d==1 else 'BUY'
-#     print('df:',df)
-#     return df
-
-def RSI(df, period=3):
-    # 整理資料
-    Chg = df['Close']-df['Close'].shift(1)
-    # Chg = Close - Close.shift(1)
-    Chg_pos = pd.Series(index=Chg.index, data=Chg[Chg>0])
-    Chg_pos = Chg_pos.fillna(0)
-    Chg_neg = pd.Series(index=Chg.index, data=-Chg[Chg<0])
-    Chg_neg = Chg_neg.fillna(0)
-    
-    # 計算period日平均漲跌幅度
-    up_mean = []
-    down_mean = []
-    for i in range(period+1, len(Chg_pos)+1):
-        up_mean.append(np.mean(Chg_pos.values[i-period:i]))
-        down_mean.append(np.mean(Chg_neg.values[i-period:i]))
-    
-    # 計算 RSI
-    rsi = []
-    for i in range(len(up_mean)):
-        rsi.append(100 * up_mean[i] / (up_mean[i]+down_mean[i]))
-    rsi_series = pd.Series(index = df['Close'].index[period:], data = rsi)
-    df['RSI']=rsi_series
+    # if condition2:
+    #     signal='SELL' if self.d==1 else 'BUY'
     return df
 
+# def RSI(df, period=3):
+#     # 整理資料
+#     Chg = df['Close']-df['Close'].shift(1)
+#     # Chg = Close - Close.shift(1)
+#     Chg_pos = pd.Series(index=Chg.index, data=Chg[Chg>0])
+#     Chg_pos = Chg_pos.fillna(0)
+#     Chg_neg = pd.Series(index=Chg.index, data=-Chg[Chg<0])
+#     Chg_neg = Chg_neg.fillna(0)
+    
+#     # 計算period日平均漲跌幅度
+#     up_mean = []
+#     down_mean = []
+#     for i in range(period+1, len(Chg_pos)+1):
+#         up_mean.append(np.mean(Chg_pos.values[i-period:i]))
+#         down_mean.append(np.mean(Chg_neg.values[i-period:i]))
+    
+#     # 計算 RSI
+#     rsi = []
+#     for i in range(len(up_mean)):
+#         rsi.append(100 * up_mean[i] / (up_mean[i]+down_mean[i]))
+#     rsi_series = pd.Series(index = df['Close'].index[period:], data = rsi)
+#     df['RSI']=rsi_series
+#     return df
 
+# def isNaN(df):
+#         return df['ATR'] !=df['ATR'] 
+
+def Size(df):
+    df=df.copy()
+    df['R']=round(ATR_SL*df['ATR'],6)
+    # df['R']=0.0006 if isNaN(df['ATR']) else round(ATR_SL*df['ATR'],6)
+    df['size']=round(perloss/df['R'],0)
+    return df
 
 for pair in range(len(pairs_list)):
-    df[pair]['ATR']=ATR(df[pair],20)['ATR']
-    df[pair]['sma_fast']=SMA(df[pair],50,200)
+    df[pair]['ATR']=ATR(df[pair],14)['ATR']
+    df[pair]['sma_fast']=SMA(df[pair],30,100)
     df[pair]['RSI']=RSI(df[pair],3)['RSI']
+    # df[pair]['size']=Size(df[pair])['size']
     if 'JPY' not in pairs_list[pair]:
         df[pair]['spread']=float(slippage)/float(10000)
         df[pair]['size']=float(size)*float(10000)
-        print('Pair: ',pairs_list[pair],'a')
+        print('Pair: ',pairs_list[pair],'pip:0.0001')
     else:
         df[pair]['spread']=float(slippage)/float(100)
-        df[pair]['size']=float(size)*float(100)
-        print('Pair: ',pairs_list[pair],'b')
-    
+        # df[pair]['size']=float(size)*float(100)
+        print('Pair: ',pairs_list[pair],'pip:0.01')
+    # print(df[pair])
 
 
 
@@ -134,17 +144,19 @@ for pair in range(len(pairs_list)):
     stp[pair]=[]
     lsl[pair]=[]
     ssl[pair]=[]
-    for i in range(20,len(df[pair])):
+    for i in range(14,len(df[pair])):
         # Buy
         if df[pair]['RSI'][i-1]>20 and df[pair]['RSI'][i]<=20 and len(open_trade[pair])==0:
+        # if df[pair]['RSI'][i-1]<20 and df[pair]['RSI'][i]>=20 and len(open_trade[pair])==0:
+        # if df[pair]['RSI'][i-1]<20 and df[pair]['RSI'][i]>=20 and df[pair]['sma_fast'][i-1]<df[pair]['sma_fast'][i] and len(open_trade[pair])==0:
         # if df[pair]['sma_fast'][i-1]<df[pair]['sma_slow'][i-1] and df[pair]['sma_fast'][i]>=df[pair]['sma_slow'][i] and len(open_trade[pair])==0:
-            print(i,'New Long trade at price:',round(df[pair]['Close'][i],4),'On day:',df[pair].index[i],'Pair:',pairs_list[pair])
+            print(i,'New Long trade at price:',round(df[pair]['Close'][i],4),'On day:',df[pair].index[i],'Pair:',pairs_list[pair],'Position:',df[pair]['size'][i])
             trade[pair][i]={'ID':i,
                     'date_of_trade':df[pair].index[i],
                     'entry_price':round(df[pair]['Close'][i],4),
                     'signal':'Buy',
                     'result':0,
-                    'TP':round(df[pair]['Close'][i]+df[pair]['ATR'][i]*ATR_SL,4),
+                    'TP':round(df[pair]['Close'][i]+df[pair]['ATR'][i]*ATR_SL*rr,4),
                     'SL':round(df[pair]['Close'][i]-df[pair]['ATR'][i]*ATR_SL,4)
                     }
             open_trade[pair].append(i)
@@ -154,14 +166,16 @@ for pair in range(len(pairs_list)):
 
         # Sell
         if df[pair]['RSI'][i-1]<80 and df[pair]['RSI'][i]>=80 and len(open_trade[pair])==0:
+        # if df[pair]['RSI'][i-1]>80 and df[pair]['RSI'][i]<=80 and len(open_trade[pair])==0:
+        # if df[pair]['RSI'][i-1]>80 and df[pair]['RSI'][i]<=80 and df[pair]['sma_fast'][i-1]>df[pair]['sma_fast'][i] and len(open_trade[pair])==0:
         # if df[pair]['sma_fast'][i-1]>df[pair]['sma_slow'][i-1] and df[pair]['sma_fast'][i]<=df[pair]['sma_slow'][i] and len(open_trade[pair])==0:
-            print(i,'New Short trade at price:',round(df[pair]['Close'][i],4),'On day:',df[pair].index[i],'Pair:',pairs_list[pair])
+            print(i,'New Short trade at price:',round(df[pair]['Close'][i],4),'On day:',df[pair].index[i],'Pair:',pairs_list[pair],'Position:',df[pair]['size'][i])
             trade[pair][i]={'ID':i,
                     'date_of_trade':df[pair].index[i],
                     'entry_price':round(df[pair]['Close'][i],4),
                     'signal':'Sell',
                     'result':0,
-                    'TP':round(df[pair]['Close'][i]-df[pair]['ATR'][i]*ATR_SL,4),
+                    'TP':round(df[pair]['Close'][i]-df[pair]['ATR'][i]*ATR_SL*rr,4),
                     'SL':round(df[pair]['Close'][i]+df[pair]['ATR'][i]*ATR_SL,4)
                     }
             open_trade[pair].append(i)
@@ -171,85 +185,85 @@ for pair in range(len(pairs_list)):
         
         # Exit trades ----------------------------------------------------------------------------------------------
         # Buy profit
-        if any(y<=df[pair]['Close'][i] for y in ltp[pair]):
+        if any(y<=df[pair]['High'][i] for y in ltp[pair]):
             for j in open_trade[pair]:
                 if trade[pair][j].get('result',{})==0 and trade[pair][j].get('signal',{})=='Buy':
-                    if df[pair]['Close'][i]>=trade[pair][j]['TP']:
+                    if df[pair]['High'][i]>=trade[pair][j]['TP']:
                         trade[pair][j].update({'result':(trade[pair][j]['TP']-trade[pair][j]['entry_price']-df[pair]['spread'][i])*df[pair]['size'][i]})
                         print(j,
                             'Long profit at price:',round(df[pair]['Close'][i],4),
                             'On day:',df[pair].index[i],
-                            'With profit:',round(trade[pair][j]['result'],4),'\n')
+                            'With profit:',round(trade[pair][j]['result'],4),'pips:',round((trade[pair][j]['TP']-trade[pair][j]['entry_price']-df[pair]['spread'][i])*10000,0),'Spread:',df[pair]['spread'][i]*df[pair]['size'][j],'\n')
                         open_trade[pair].remove(j)
                         ltp[pair].remove(trade[pair][j]['TP'])
                         lsl[pair].remove(trade[pair][j]['SL'])
 
         # Buy loss
-        if any(y>=df[pair]['Close'][i] for y in lsl[pair]):
+        if any(y>=df[pair]['Low'][i] for y in lsl[pair]):
             for j in open_trade[pair]:
                 if trade[pair][j].get('result',{})==0 and trade[pair][j].get('signal',{})=='Buy':
-                    if df[pair]['Close'][i]<=trade[pair][j]['SL']:
+                    if df[pair]['Low'][i]<=trade[pair][j]['SL']:
                         trade[pair][j].update({'result':(trade[pair][j]['SL']-trade[pair][j]['entry_price']-df[pair]['spread'][i])*df[pair]['size'][i]})
                         print(j,
                             'Long loss at price:',round(df[pair]['Close'][i],4),
                             'On day:',df[pair].index[i],
-                            'With loss:',round(trade[pair][j]['result'],4),'\n')
+                            'With loss:',round(trade[pair][j]['result'],4),'pips:',round((trade[pair][j]['SL']-trade[pair][j]['entry_price']-df[pair]['spread'][i])*10000,0),'Spread:',df[pair]['spread'][i]*df[pair]['size'][j],'\n')
                         open_trade[pair].remove(j)
                         ltp[pair].remove(trade[pair][j]['TP'])
                         lsl[pair].remove(trade[pair][j]['SL'])
 
         # Sell profit
-        if any(y>=df[pair]['Close'][i] for y in stp[pair]):
+        if any(y>=df[pair]['Low'][i] for y in stp[pair]):
             for j in open_trade[pair]:
                 if trade[pair][j].get('result',{})==0 and trade[pair][j].get('signal',{})=='Sell':
-                    if df[pair]['Close'][i]<=trade[pair][j]['TP']:
+                    if df[pair]['Low'][i]<=trade[pair][j]['TP']:
                         trade[pair][j].update({'result':(trade[pair][j]['entry_price']-trade[pair][j]['TP']-df[pair]['spread'][i])*df[pair]['size'][i]})
                         print(j,
                             'Short profit at price:',round(df[pair]['Close'][i],4),
                             'On day:',df[pair].index[i],
-                            'With profit:',round(trade[pair][j]['result'],4),'\n')
+                            'With profit:',round(trade[pair][j]['result'],4),'pips:',round((trade[pair][j]['entry_price']-trade[pair][j]['TP']-df[pair]['spread'][i])*10000,0),'Spread:',df[pair]['spread'][i]*df[pair]['size'][j],'\n')
                         open_trade[pair].remove(j)
                         stp[pair].remove(trade[pair][j]['TP'])
                         ssl[pair].remove(trade[pair][j]['SL'])
 
         # Sell loss
-        if any(y<=df[pair]['Close'][i] for y in ssl[pair]):
+        if any(y<=df[pair]['High'][i] for y in ssl[pair]):
             for j in open_trade[pair]:
                 if trade[pair][j].get('result',{})==0 and trade[pair][j].get('signal',{})=='Sell':
-                    if df[pair]['Close'][i]>=trade[pair][j]['SL']:
+                    if df[pair]['High'][i]>=trade[pair][j]['SL']:
                         trade[pair][j].update({'result':(trade[pair][j]['entry_price']-trade[pair][j]['SL']-df[pair]['spread'][i])*df[pair]['size'][i]})
                         print(j,
                             'Short loss at price:',round(df[pair]['Close'][i],4),
                             'On day:',df[pair].index[i],
-                            'With loss:',round(trade[pair][j]['result'],4),'\n')
+                            'With loss:',round(trade[pair][j]['result'],4),'pips:',round((trade[pair][j]['entry_price']-trade[pair][j]['SL']-df[pair]['spread'][i])*10000,0),'Spread:',df[pair]['spread'][i]*df[pair]['size'][j],'\n')
                         open_trade[pair].remove(j)
                         stp[pair].remove(trade[pair][j]['TP'])
                         ssl[pair].remove(trade[pair][j]['SL'])
 
         # Exit after time
-        if len(open_trade[pair]) != 0:
-            for j in open_trade[pair]:
-                if (i-trade[pair][j]['ID']) >= 12 and trade[pair][j].get('result',{})==0 and trade[pair][j].get('signal',{})=='Buy': 
-                    trade[pair][j].update({'result':(df[pair]['Close'][i]-trade[pair][j]['entry_price']-df[pair]['spread'][i])*df[pair]['size'][i]})
-                    print(j,
-                        'Long exit after 12 bars:',round(df[pair]['Close'][i],4),
-                        'On day:',df[pair].index[i],
-                        'With profit:',round(trade[pair][j]['result'],4),'\n')
-                    open_trade[pair].remove(j)
-                    ltp[pair].remove(trade[pair][j]['TP'])
-                    lsl[pair].remove(trade[pair][j]['SL'])
-                    # plot trade
-                    # if plot_trades == True:
-                    #     trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
-                elif (i-trade[pair][j]['ID']) >= 12 and trade[pair][j].get('result',{})==0 and trade[pair][j].get('signal',{})=='Sell': 
-                    trade[pair][j].update({'result':(trade[pair][j]['entry_price']-df[pair]['Close'][i]-df[pair]['spread'][i])*df[pair]['size'][i]})
-                    print(j,
-                        'Short exit after 12 bars:',round(df[pair]['Close'][i],4),
-                        'On day:',df[pair].index[i],
-                        'With profit:',round(trade[pair][j]['result'],4),'\n')
-                    open_trade[pair].remove(j)
-                    stp[pair].remove(trade[pair][j]['TP'])
-                    ssl[pair].remove(trade[pair][j]['SL'])
+        # if len(open_trade[pair]) != 0:
+        #     for j in open_trade[pair]:
+        #         if (i-trade[pair][j]['ID']) >= 12 and trade[pair][j].get('result',{})==0 and trade[pair][j].get('signal',{})=='Buy': 
+        #             trade[pair][j].update({'result':(df[pair]['Close'][i]-trade[pair][j]['entry_price']-df[pair]['spread'][i])*df[pair]['size'][i]})
+        #             print(j,
+        #                 'Long exit after 12 bars:',round(df[pair]['Close'][i],4),
+        #                 'On day:',df[pair].index[i],
+        #                 'With profit:',round(trade[pair][j]['result'],4),'\n')
+        #             open_trade[pair].remove(j)
+        #             ltp[pair].remove(trade[pair][j]['TP'])
+        #             lsl[pair].remove(trade[pair][j]['SL'])
+        #             # plot trade
+        #             # if plot_trades == True:
+        #             #     trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
+        #         elif (i-trade[pair][j]['ID']) >= 12 and trade[pair][j].get('result',{})==0 and trade[pair][j].get('signal',{})=='Sell': 
+        #             trade[pair][j].update({'result':(trade[pair][j]['entry_price']-df[pair]['Close'][i]-df[pair]['spread'][i])*df[pair]['size'][i]})
+        #             print(j,
+        #                 'Short exit after 12 bars:',round(df[pair]['Close'][i],4),
+        #                 'On day:',df[pair].index[i],
+        #                 'With profit:',round(trade[pair][j]['result'],4),'\n')
+        #             open_trade[pair].remove(j)
+        #             stp[pair].remove(trade[pair][j]['TP'])
+        #             ssl[pair].remove(trade[pair][j]['SL'])
                     # plot trade
                     # if plot_trades == True:
                     #     trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
@@ -268,12 +282,24 @@ for pair in range(len(pairs_list)):
     pairs_results[pair]=pairs_results[pair].drop(['signal','ID','TP','SL',],axis=1)
     pairs_results[pair].set_index('date_of_trade',inplace=True)
     pairs_results[pair]['cum_res']=pairs_results[pair]['result'].cumsum()+account_size
+    # print(pairs_results[pair])
   
 
-for t in trade[pair]:
-    profits[pair].append(trade[pair][t]['result']) if trade[pair][t]['result']>0.1 else ''
-    losses[pair].append(trade[pair][t]['result']) if trade[pair][t]['result']<-0.1 else ''
-    be[pair].append(trade[pair][t]['result']) if -0.1<= trade[pair][t]['result']<=0.1 else ''
+    for t in trade[pair]:
+        profits[pair].append(trade[pair][t]['result']) if trade[pair][t]['result']>0.1 else ''
+        losses[pair].append(trade[pair][t]['result']) if trade[pair][t]['result']<-0.1 else ''
+        be[pair].append(trade[pair][t]['result']) if -0.1<= trade[pair][t]['result']<=0.1 else ''
+
+    print('wins:',len(profits[pair]))
+    print('losses:',len(losses[pair]))
+    print('breakevens:',len(be[pair]))
+    print('win rate:{:.2%}'.format(len(profits[pair])/(len(profits[pair])+len(losses[pair]))))
+    print('---------------------------------------------------')
+    
+    print('wins average:',round(np.mean(profits[pair]),2))
+    print('losses average:',round(np.mean(losses[pair]),2))
+    print('RR:',round((np.mean(profits[pair]))/(np.mean(losses[pair])),2))
+    
 
 my_reduce=partial(pd.merge,on='date_of_trade',how='outer')
 strategy_results=reduce(my_reduce,pairs_results.values())
