@@ -8,6 +8,7 @@ import os
 from pandas.core.common import flatten
 from functools import partial,reduce
 import talib
+from _SB2 import *
 
 account_size=10000
 slippage=1.4 #IB Forex commision -0.00002 * position
@@ -17,6 +18,7 @@ rr=1
 perloss=account_size*0.01
 plot_trades = True
 plt.style.use('ggplot')
+d=1
 
 path='/Users/davidliao/Documents/code/Python/MyStudy/Backtest/data'
 pairs_list=[]
@@ -123,6 +125,7 @@ for pair in range(len(pairs_list)):
     # print(df[pair])
 
 csv={}
+df1={}
 
 open_trade={}
 trade={}
@@ -145,13 +148,18 @@ for pair in range(len(pairs_list)):
     lsl[pair]=[]
     ssl[pair]=[]
     for i in range(14,len(df[pair])):
+        df1[pair]=df[pair][0:i] #the df1 to call strategies' functions
+        # print('df1:',df1)
+        # signal,qty,entryprice,tp,sl=SB(df1[pair],d) # Call _SB2.py
+
         # Buy
+        # if signal='BUY' and len(open_trade[pair])==0:
         if df[pair]['RSI'][i-1]>20 and df[pair]['RSI'][i]<=20 and len(open_trade[pair])==0:
         # if df[pair]['RSI'][i-1]<20 and df[pair]['RSI'][i]>=20 and len(open_trade[pair])==0:
         # if df[pair]['RSI'][i-1]<20 and df[pair]['RSI'][i]>=20 and df[pair]['sma_fast'][i-1]<df[pair]['sma_fast'][i] and len(open_trade[pair])==0:
         # if df[pair]['sma_fast'][i-1]<df[pair]['sma_slow'][i-1] and df[pair]['sma_fast'][i]>=df[pair]['sma_slow'][i] and len(open_trade[pair])==0:
             print(i,'New Long trade at price:',round(df[pair]['Close'][i],4),'On day:',df[pair].index[i],'Pair:',pairs_list[pair],'Position:',df[pair]['size'][i])
-            csv[pair][i]={'ID':i,'New Long trade at price':round(df[pair]['Close'][i],4),'On day':df[pair].index[i],'Pair':pairs_list[pair],'Position':df[pair]['size'][i]}
+            # csv[pair][i]={'ID':i,'New Long trade at price':round(df[pair]['Close'][i],4),'On day':df[pair].index[i],'Pair':pairs_list[pair],'Position':df[pair]['size'][i]}
             trade[pair][i]={'ID':i,
                     'date_of_trade':df[pair].index[i],
                     'entry_price':round(df[pair]['Close'][i],4),
