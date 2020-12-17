@@ -3,15 +3,16 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.style
 import time
-import datetime
+from datetime import timedelta
 import os
 from pandas.core.common import flatten
 from functools import partial,reduce
 import talib
-from _SB2 import *
+# from _SB2 import *
+
 
 account_size=10000
-slippage=1.4 #IB Forex commision -0.00002 * position
+slippage=0.6 #IB Forex commision -0.00002 * position
 size=1
 ATR_SL=2
 rr=1
@@ -20,7 +21,9 @@ plot_trades = True
 plt.style.use('ggplot')
 d=1
 
-path='/Users/davidliao/Documents/code/Python/MyStudy/Backtest/data'
+path='/Users/davidliao/Documents/code/Github/Backtest_Python/data'
+# path='/Users/davidliao/Documents/code/Github/IB-native-API/FX_data'
+
 pairs_list=[]
 for filename in os.listdir(path):
     if filename.endswith('.csv'):
@@ -33,10 +36,11 @@ for pair in range(len(pairs_list)):
     df[pair]['DateTime'] = pd.to_datetime(df[pair]['DateTime'],unit='s') 
     df[pair]=df[pair].set_index('DateTime')
 
-plt.figure(figsize=(24,8))
-plt.plot(df[0]['Close'],color='black')
-plt.xlabel('Data',fontsize=18)
-plt.ylabel('Price',fontsize=18)
+    # plt.figure(figsize=(24,8))
+    # plt.plot(df[pair]['Close'],color='black')
+    # plt.xlabel(pairs_list[pair],fontsize=18)
+    # plt.ylabel('Price',fontsize=18)
+    
 
 
 
@@ -55,49 +59,67 @@ def ATR(df,n):
     df=df.drop(['High-Low','High-prevClose','Low-prevClose'],axis=1)
     return df
 
-def RSI(df,n):
-    # signal=False
-    # df=df.copy()
-   
-    # closes = self.df['Close']
-    df['RSI']=talib.RSI(df['Close'], timeperiod=n)
-    # df['RSI']=talib.RSI(np.array(closes), timeperiod=3)
-    
-    # ul=80
-    # dl=20
-    # condition1=a[-1]<dl and a[-2]>=dl
-    # condition2=a[-1]>ul and a[-2]<=ul
-
-    # if condition1:
-    #     signal='BUY' if self.d==1 else 'SELL'
-
-    # if condition2:
-    #     signal='SELL' if self.d==1 else 'BUY'
+def RSI1(df,n):
+    df['diff']=df['Close'].diff(1).dropna()
+    df['gains']=np.where(df['diff']>0,df['diff'],np.nan)
+    df['losses']=np.where(df['diff']<=0,df['diff'],np.nan)
+    df['average_gains']=df['gains'].rolling(n,min_periods=1).mean()
+    df['average_losses']=df['losses'].rolling(n,min_periods=1).mean()
+    rs=abs(df['average_gains']/df['average_losses'])
+    df['RSI']=100-(100/(1+rs))
+    # df=df.drop(['diff','gains','losses','average_gains','average_losses'],axis=1)
     return df
 
-# def RSI(df, period=3):
-#     # 整理資料
-#     Chg = df['Close']-df['Close'].shift(1)
-#     # Chg = Close - Close.shift(1)
-#     Chg_pos = pd.Series(index=Chg.index, data=Chg[Chg>0])
-#     Chg_pos = Chg_pos.fillna(0)
-#     Chg_neg = pd.Series(index=Chg.index, data=-Chg[Chg<0])
-#     Chg_neg = Chg_neg.fillna(0)
+
+def RSI2(df,n): 
+    df['RSI']=talib.RSI(df['Close'], timeperiod=n)
+    return df
+
+def RSI3(df, period=3):
+    # 整理資料
+    Chg = df['Close']-df['Close'].shift(1)
+    # Chg = Close - Close.shift(1)
+    Chg_pos = pd.Series(index=Chg.index, data=Chg[Chg>0])
+    Chg_pos = Chg_pos.fillna(0)
+    Chg_neg = pd.Series(index=Chg.index, data=-Chg[Chg<0])
+    Chg_neg = Chg_neg.fillna(0)
     
-#     # 計算period日平均漲跌幅度
-#     up_mean = []
-#     down_mean = []
-#     for i in range(period+1, len(Chg_pos)+1):
-#         up_mean.append(np.mean(Chg_pos.values[i-period:i]))
-#         down_mean.append(np.mean(Chg_neg.values[i-period:i]))
+    # 計算period日平均漲跌幅度
+    up_mean = []
+    down_mean = []
+    for i in range(period+1, len(Chg_pos)+1):
+        up_mean.append(np.mean(Chg_pos.values[i-period:i]))
+        down_mean.append(np.mean(Chg_neg.values[i-period:i]))
     
-#     # 計算 RSI
-#     rsi = []
-#     for i in range(len(up_mean)):
-#         rsi.append(100 * up_mean[i] / (up_mean[i]+down_mean[i]))
-#     rsi_series = pd.Series(index = df['Close'].index[period:], data = rsi)
-#     df['RSI']=rsi_series
-#     return df
+    # 計算 RSI
+    rsi = []
+    for i in range(len(up_mean)):
+        rsi.append(100 * up_mean[i] / (up_mean[i]+down_mean[i]))
+    rsi_series = pd.Series(index = df['Close'].index[period:], data = rsi)
+    df['RSI']=rsi_series
+    return df
+
+def RSI4(df,period=3):
+    #計算和上一個交易日收盤價的差值
+    df['diff'] = df["Close"]-df["Close"].shift(1) 
+    df['diff'].fillna(0, inplace = True)    
+    df['up'] = df['diff']
+    #過濾掉小於0的值
+    df['up'][df['up']] = 0
+    df['down'] = df['diff']
+    #過濾掉大於0的值
+    df['down'][df['down']] = 0
+    #通過for迴圈，依次計算periodList中不同週期的RSI等值
+    for period in periodList:
+        df['upAvg'+str(period)] = df['up'].rolling(period).sum()/period
+        df['upAvg'+str(period)].fillna(0, inplace = True)
+        df['downAvg'+str(period)] = abs(df['down'].rolling(period).sum()/period)
+        df['downAvg'+str(period)].fillna(0, inplace = True)
+        df['RSI'] = 100 - 100/((df['upAvg'+str(period)]/df['downAvg'+str(period)]+1))
+    return df
+
+
+
 
 # def isNaN(df):
 #         return df['ATR'] !=df['ATR'] 
@@ -109,10 +131,42 @@ def Size(df):
     df['size']=round(perloss/df['R'],0)
     return df
 
+def trade_plot1(df, trade, exit_price, exit_date, vah, val):
+    plt.figure(figsize = (25, 8))
+    plt.title(trade['signal'] + ' - With result: ' + str(round(trade['result'], 2)))
+    plt.plot(df['Close'][(trade['date_of_trade'] - datetime.timedelta(days = 60)): (trade['date_of_trade'] + datetime.timedelta(days = 30))], color = 'blue')
+    plt.axhline(trade['TP'], color = 'green', ls = ':')
+    plt.axhline(trade['SL'], color = 'red', ls = ':')
+    plt.axhline(vah, color = 'black', ls = '--')
+    plt.axhline(val, color = 'black', ls = '--')
+    plt.axvline(df.index[np.where(df.index.time == datetime.time(0, 0))[0][-1]], color = 'black', ls = '--')
+    plt.scatter(trade['date_of_trade'], trade['entry_price'], color = 'yellow', s = 200)
+    plt.scatter(exit_date, exit_price, color = 'orange', s = 200)
+    plt.show()
+    return
+
+def trade_plot(df, trade, exit_price, exit_date):
+    plt.figure(figsize = (25, 8))
+    plt.title(trade['signal'] + ' - With result: ' + str(round(trade['result'], 2)))
+    plt.plot(df['Close'][(trade['date_of_trade'] - timedelta(days = 100)): (trade['date_of_trade'] + timedelta(days = 30))], color = 'blue')
+    # plt.plot(df['Close'][(trade['date_of_trade'] - datetime.timedelta(days = 100)): (trade['date_of_trade'] + datetime.timedelta(days = 30))], color = 'blue')
+    plt.axhline(trade['TP'], color = 'green', ls = ':')
+    plt.axhline(trade['SL'], color = 'red', ls = ':')
+    plt.scatter(trade['date_of_trade'], trade['entry_price'], color = 'yellow', s = 200)
+    plt.scatter(exit_date, exit_price, color = 'orange', s = 200)
+    
+    plt.show()
+    return 
+
+
 for pair in range(len(pairs_list)):
     df[pair]['ATR']=ATR(df[pair],14)['ATR']
     df[pair]['sma_fast']=SMA(df[pair],30,100)
-    df[pair]['RSI']=RSI(df[pair],3)['RSI']
+    df[pair]['RSI1']=RSI1(df[pair],3)['RSI']
+    df[pair]['RSI']=RSI2(df[pair],3)['RSI']
+    # df[pair]['RSI3']=RSI3(df[pair],3)['RSI']
+    # df[pair]['RSI4']=RSI4(df[pair],3)['RSI']
+  
     # df[pair]['size']=Size(df[pair])['size']
     if 'JPY' not in pairs_list[pair]:
         df[pair]['spread']=float(slippage)/float(10000)
@@ -120,9 +174,21 @@ for pair in range(len(pairs_list)):
         print('Pair: ',pairs_list[pair],'pip:0.0001')
     else:
         df[pair]['spread']=float(slippage)/float(100)
-        # df[pair]['size']=float(size)*float(100)
+        df[pair]['size']=float(size)*float(100)
         print('Pair: ',pairs_list[pair],'pip:0.01')
     # print(df[pair])
+
+
+path1='/Users/davidliao/Documents/code/Github/Backtest_Python/report'
+
+for pair in range(len(pairs_list)):
+    df[pair].to_csv(path1+'/'+pairs_list[pair]+'_report.csv',index=1 ,float_format='%.5f')  
+    # plt.figure(figsize=(24,8))
+    # plt.plot(df[pair]['Close'],color='black')
+    # plt.xlabel(pairs_list[pair],fontsize=18)
+    # plt.ylabel('Price',fontsize=18)
+    # plt.show()
+
 
 csv={}
 df1={}
@@ -149,7 +215,8 @@ for pair in range(len(pairs_list)):
     ssl[pair]=[]
     for i in range(14,len(df[pair])):
         df1[pair]=df[pair][0:i] #the df1 to call strategies' functions
-        # print('df1:',df1)
+        # print('df1[pair]:',df1[pair])
+        
         # signal,qty,entryprice,tp,sl=SB(df1[pair],d) # Call _SB2.py
 
         # Buy
@@ -206,6 +273,9 @@ for pair in range(len(pairs_list)):
                         open_trade[pair].remove(j)
                         ltp[pair].remove(trade[pair][j]['TP'])
                         lsl[pair].remove(trade[pair][j]['SL'])
+                        # plot trade
+                        # if plot_trades == True:
+                        #     trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
 
         # Buy loss
         if any(y>=df[pair]['Low'][i] for y in lsl[pair]):
@@ -220,6 +290,9 @@ for pair in range(len(pairs_list)):
                         open_trade[pair].remove(j)
                         ltp[pair].remove(trade[pair][j]['TP'])
                         lsl[pair].remove(trade[pair][j]['SL'])
+                        # plot trade
+                        # if plot_trades == True:
+                        #     trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
 
         # Sell profit
         if any(y>=df[pair]['Low'][i] for y in stp[pair]):
@@ -234,6 +307,9 @@ for pair in range(len(pairs_list)):
                         open_trade[pair].remove(j)
                         stp[pair].remove(trade[pair][j]['TP'])
                         ssl[pair].remove(trade[pair][j]['SL'])
+                        # plot trade
+                        # if plot_trades == True:
+                        #     trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
 
         # Sell loss
         if any(y<=df[pair]['High'][i] for y in ssl[pair]):
@@ -248,6 +324,9 @@ for pair in range(len(pairs_list)):
                         open_trade[pair].remove(j)
                         stp[pair].remove(trade[pair][j]['TP'])
                         ssl[pair].remove(trade[pair][j]['SL'])
+                        # plot trade
+                        # if plot_trades == True:
+                        #     trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
 
         # Exit after time
         # if len(open_trade[pair]) != 0:
@@ -262,8 +341,8 @@ for pair in range(len(pairs_list)):
         #             ltp[pair].remove(trade[pair][j]['TP'])
         #             lsl[pair].remove(trade[pair][j]['SL'])
         #             # plot trade
-        #             # if plot_trades == True:
-        #             #     trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
+        #             if plot_trades == True:
+        #                 trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
         #         elif (i-trade[pair][j]['ID']) >= 12 and trade[pair][j].get('result',{})==0 and trade[pair][j].get('signal',{})=='Sell': 
         #             trade[pair][j].update({'result':(trade[pair][j]['entry_price']-df[pair]['Close'][i]-df[pair]['spread'][i])*df[pair]['size'][i]})
         #             print(j,
@@ -273,19 +352,22 @@ for pair in range(len(pairs_list)):
         #             open_trade[pair].remove(j)
         #             stp[pair].remove(trade[pair][j]['TP'])
         #             ssl[pair].remove(trade[pair][j]['SL'])
-                    # plot trade
-                    # if plot_trades == True:
-                    #     trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
+        #             # plot trade
+        #             if plot_trades == True:
+        #                 trade_plot(df[pair][i-1000:i+30],trade[pair][j],df[pair]['Close'][i],df[pair].index[i])
+                   
 
 pairs_results={}
 profits={}
 losses={}
 be={}
+plt.figure(figsize=(26,10))
 
 for pair in range(len(pairs_list)):
     profits[pair]=[]
     losses[pair]=[]
     be[pair]=[]
+
 
     pairs_results[pair]=pd.DataFrame.from_dict({(i,j):trade[pair][j] for j in trade[pair].keys()},orient='index')
     pairs_results[pair]=pairs_results[pair].drop(['signal','ID','TP','SL',],axis=1)
@@ -298,17 +380,25 @@ for pair in range(len(pairs_list)):
         profits[pair].append(trade[pair][t]['result']) if trade[pair][t]['result']>0.1 else ''
         losses[pair].append(trade[pair][t]['result']) if trade[pair][t]['result']<-0.1 else ''
         be[pair].append(trade[pair][t]['result']) if -0.1<= trade[pair][t]['result']<=0.1 else ''
-
+    
+    print('---------------------------------------------------')
+    print('Pair:',pairs_list[pair])
     print('wins:',len(profits[pair]))
     print('losses:',len(losses[pair]))
     print('breakevens:',len(be[pair]))
     print('win rate:{:.2%}'.format(len(profits[pair])/(len(profits[pair])+len(losses[pair]))))
-    print('---------------------------------------------------')
-    
+  
     print('wins average:',round(np.mean(profits[pair]),2))
-    print('losses average:',round(np.mean(losses[pair]),2))
-    print('RR:',round((np.mean(profits[pair]))/(np.mean(losses[pair])),2))
-    
+    print('losses average:',-1*round(np.mean(losses[pair]),2))
+    print('RR:',-1*round((np.mean(profits[pair]))/(np.mean(losses[pair])),2))
+    print('MDD:',round((pairs_results[pair]['cum_res'].cummax() - pairs_results[pair]['cum_res']).max(),0))
+    print('MDD%:{:.2%}'.format(round((((pairs_results[pair]['cum_res'].cummax() - pairs_results[pair]['cum_res']) / pairs_results[pair]['cum_res'].cummax()).max()),2)))
+    print('pairs:',pairs_list[pair],' gains/losses:',round(pairs_results[pair]['cum_res'][-1]-account_size,0))
+    print('pairs:',pairs_list[pair],' gains/losses%:{:.2%}'.format(round((pairs_results[pair]['cum_res'][-1]-account_size)/account_size,2)))
+
+    plt.plot(pairs_results[pair]['cum_res'],label=pairs_list[pair])
+    plt.legend()
+    plt.title('Return of each pair',fontsize=18)
 
 my_reduce=partial(pd.merge,on='date_of_trade',how='outer')
 strategy_results=reduce(my_reduce,pairs_results.values())
@@ -330,14 +420,10 @@ be_keys=list(be.keys())
 be_values=[be[x] for x in be_keys]
 str_be=list(flatten(be_values))
 
-plt.figure(figsize=(26,10))
-for pair in range(len(pairs_list)):
-    plt.plot(pairs_results[pair]['cum_res'],label=pairs_list[pair])
-plt.legend()
-plt.title('Return of each pair',fontsize=18)
-
 print('Strategy returns:',round(strategy_results['cum_res'][-1])-account_size)
+plt.show()
 
+    
 # csv_df={}
 # for pair in range(len(pairs_list)):
 #     # print('CSV:',csv[pair])
