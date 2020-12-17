@@ -1,3 +1,7 @@
+'''
+learn from Udemy backtest sample
+'''
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -9,7 +13,6 @@ from pandas.core.common import flatten
 from functools import partial,reduce
 import talib
 # from _SB2 import *
-
 
 account_size=10000
 slippage=0.6 #IB Forex commision -0.00002 * position
@@ -423,7 +426,6 @@ str_be=list(flatten(be_values))
 print('Strategy returns:',round(strategy_results['cum_res'][-1])-account_size)
 plt.show()
 
-    
 # csv_df={}
 # for pair in range(len(pairs_list)):
 #     # print('CSV:',csv[pair])
